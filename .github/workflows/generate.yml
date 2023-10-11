@@ -1,0 +1,39 @@
+name: Generate diagrams from PlantUML files
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Setup Java
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+      - name: Install GraphViz
+        run: sudo apt-get update --allow-insecure-repositories && sudo apt-get install -y graphviz
+      - name: Download PlantUML
+        run: curl -sSL -o ${{ runner.temp }}/plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2022.0/plantuml-1.2022.0.jar
+      - name: Generate diagrams
+        run: java -jar ${{ runner.temp }}/plantuml.jar -checkmetadata **/*.puml
+      - name: Generate README.md files
+        run: |
+          find . -mindepth 2 -name 'README.md' -type f -exec rm {} \;
+          find . -type f -name '*.puml' | xargs dirname | sort -u | xargs -I dir find dir -type f -name '*.png' -exec sh -c 'echo "## $(basename {})\n![]($(basename {}))\n" >> dir/README.md' \;
+      - name: Git status
+        run: git status
+      - name: Commit
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          (git update-index -q --refresh && git diff-index --quiet HEAD && (git ls-files --other --directory --exclude-standard | sed q1)) || (git add **/*.png **/*.md && git commit -m 'Generated diagrams and READMEs')
+      - name: Push
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}

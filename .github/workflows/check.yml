@@ -1,0 +1,16 @@
+name: Check PlantUML syntax
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    container: hrektts/plantuml
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Check PlantUML syntax
+        run: plantuml -checkonly **/*.puml
