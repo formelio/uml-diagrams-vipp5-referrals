@@ -1,0 +1,52 @@
+@startuml
+autonumber
+
+title Zuyderland HINQ ZNO SSO
+
+box "Zuyderland"
+    actor "Care provider" as zp
+    participant "Zuyderland EHR" as ze
+    participant "Firely FHIR server" as zff
+    participant "Firely auth server" as zfa
+end box
+
+box "HINQ"
+    participant "ZNO auth server" as ha
+    participant "ZNO" as hz
+    participant "HINQ Nuts node" as hn
+end box
+
+zp->ze: Refer patient x\nfor use case y
+note over ze: **Prerequisite:** patient is\nloaded into Firely Server
+note over zfa:**Precondition**\nEHR is\nregistered
+group Needed for EHR launch
+ze->zfa: Request launch context (authz header + secret + patient/practitioner/encounter id)
+zfa->ze: Launch context identifier
+end
+note over ze:iframe
+ze->ha: Redirect to ZNO with SMART EHR Launch request (iss, launch)
+ha->zff: Obtain CapabilityStatement OR\n.well-known/smart-configuration.json
+zff->ha: authorization_endpoint, token_endpoint
+note over zfa:**Precondition**\nZNO is registered as client
+ha->zfa: Redirect to **authorization_endpoint:** authorization request (client_id, redirect_uri, \nlaunch, scope, state, aud (==iss), code_challenge(_method))
+note over zfa: scope:\npatient/[BgZ].s\npatient/Task.c
+note over zfa: We need to provide\nlaunch/patient\nlaunch/Encounter\nlaunch/Practitioner
+zfa->ha: Redirect with authorization code
+ha->zfa: **token_endpoint:** request access token
+zfa->ha: access_token & launch context parameters (Patient ID, Encounter ID and Practitioner ID)
+note over ha: Do we need to make FHIR queries for additional info or\nis all necessary account info included in launch context parameters?
+opt We need additional resources for account info
+ha->zff: request resources (access_token as bearer token)
+zff->zfa: validate token
+zfa->zff: valid
+zff->zff: Obtain BSN from access token
+zff->zff: Perform search\n(SoF enabled)
+zff->zff: Post process based\non workflow task
+zff->ha: resources
+end opt
+ha->hn: Look up Zuyderland DID using known identifiers
+hn->ha: Zuyderland DID
+ha->ha: Add Zuyderland DID to session context
+ha->hz: Redirect user to ZNO
+hz->zp: Display referral page
+@enduml
