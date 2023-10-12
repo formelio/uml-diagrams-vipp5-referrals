@@ -20,7 +20,6 @@ box "HINQ"
 end box
 
 box "MUMC"
-    participant "Parsek FHIR interface" as mf
     participant "Firely Server" as mf
 end box
 
