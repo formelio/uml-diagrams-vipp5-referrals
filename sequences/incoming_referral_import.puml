@@ -67,6 +67,10 @@ note over hz
   - ""input:query-available-resources"", all the to be executed FHIR searches to get the data
 end note
 hz->hz: Check workflow Task still has status ""requested""
+hz->hn: Get BGZ AuthorizationCredential using ""input.authorization-base"" from the workflow Task
+hn->hz: BGZ AuthorizationCredential
+hz->hn: Request access token using BGZ AuthorizationCredential
+hn->hz: Access token
 hz->mf: Execute all the FHIR requests
 mf->hz: Responses
 hz->zp: Present resources
