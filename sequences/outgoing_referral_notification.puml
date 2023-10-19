@@ -1,0 +1,92 @@
+@startuml
+autonumber
+
+title Referring a patient from Zuyderland to MUMC
+
+box "Zuyderland"
+    actor "Care provider" as zp
+    participant "EPD" as ze
+    participant "Firely Auth" as za
+    participant "Firely Server" as zf
+end box
+
+box "Zuyderland IOP node"
+    participant "FHIR interface" as zif
+end box
+
+box "HINQ"
+    participant "ZNO" as hz
+    participant "Nuts node" as hn
+end box
+
+box "MUMC"
+    participant "Nuts node" as mn
+    participant "Firely Server" as mf
+end box
+
+zp->ze: Open referral application
+ze->hz: Redirect to ZNO
+note over zp,hz: **SMART EHR Launch SSO flow** (if possible, with optional context parameter ""action"" = ""refer"")
+opt context parameter "action" is not set
+    hz->zp: Display menu with option to start a new referral or to process an incoming referral
+    zp->hz: Select "start new referral"
+    hz->zp: Redirect to new referral page
+end opt
+
+== Searching for available receiving organizations ==
+
+hz->hn: Search for organizations supporting ""bgz-receiver"" service.
+hn->hz: List of organizations
+hz->zp: Present options of organizations to refer to
+zp->hz: Select organization
+
+== Selecting referral data ==
+
+hz->hn: Find DID of Zuyderland at Zuyderland node
+hn->hz: DID of Zuyderland at the Zuyderland node
+hz->hn: Request same organization access token
+hn->hz: Access token
+loop For each BGZ request
+    hz->zif: Execute FHIR request
+    zif->zif: Validate access token
+    zif->zif: Check if we have a valid Backend Services token available in cache
+    opt No token found
+        zif->zf: Obtain .well-known/smart-configuration.json\nOR CapabilityStatement
+        zf->zif: authorization_endpoint, token_endpoint
+        zif->zif: Generate and sign one-time-use\nauthentication JWT
+        note over za: **Precondition**\nZuyderland IOP node is registered\nwith agreed upon signing keypair
+        zif->za: Token request\nscope: system/[BgZ].s\ngrant_type: client_credentials\nclient_assertion: <jwt>
+        za->zif: Access token
+    end opt
+
+    zif->zf: Execute FHIR request
+    zf->zif: Resources
+    zif->hz: Resources
+end loop
+hz->zp: Display all practitioner's own BGZ data
+zp->hz: Select data to send in referral
+
+== Sending a referral notification ==
+
+hz->hz: Create workflow Task resource with references to all BGZ data selected by the user
+hz->zif: Create workflow Task (""POST /fhir/Task"")
+note over zf,zif: Backend Services flow with scope ""system/Task.c""
+zif->zf: Create workflow Task (""POST /fhir/Task"")
+zf->zif: New workflow Task (with ID 123)
+zif->hz: New workflow Task (with ID 123)
+
+hz->hn: Issue workflow Task AuthorizationCredential with reference to newly created ""Task/123""
+hz->hn: Issue BGZ AuthorizationCredential that grants access to all the selected resources
+hn-->mn: Sync AuthorizationCredentials
+
+hz->hn: Look up MUMC notification and token endpoints
+hn->hz: MUMC notification and token endpoints
+hz->hn: Get access token without\nany authorization credentials
+hn->hz: Access token
+hz->hz: Create notification Task
+hz->mf: Send Task to notification endpoint (""POST Task"")
+note over mn,mf: Process notification Task and send notification to MUMC practitioner
+mf->hz: 202 Accepted
+hz->zp: Inform practitioner that the referral notification has been sent
+
+@enduml
