@@ -2,7 +2,7 @@ name: Generate diagrams from PlantUML files
 
 on:
   push:
-    branches: [master]
+    branches: [main]
 
 jobs:
   generate:
